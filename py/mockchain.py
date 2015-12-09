@@ -163,9 +163,9 @@ cost=1
 
 def do_build(opts, cfg, pkg):
 
-    # returns 0, cmd, out, err = failure
-    # returns 1, cmd, out, err  = success
-    # returns 2, None, None, None = already built
+    # returns 0, cmd = failure
+    # returns 1, cmd  = success
+    # returns 2, None = already built
 
     s_pkg = os.path.basename(pkg)
     pdn = s_pkg.replace('.src.rpm', '')
@@ -178,7 +178,7 @@ def do_build(opts, cfg, pkg):
     fail_file = resdir + '/fail'
 
     if os.path.exists(success_file):
-        return 2, None, None, None
+        return 2, None
 
     # clean it up if we're starting over :)
     if os.path.exists(fail_file):
@@ -206,20 +206,19 @@ def do_build(opts, cfg, pkg):
 
     print('building %s' % s_pkg)
     mockcmd.append(pkg)
-    cmd = subprocess.Popen(
-        mockcmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = cmd.communicate()
+    with open(resdir + '/stdout.log', 'w') as stdout:
+        with open(resdir + '/stderr.log', 'w') as stderr:
+            cmd = subprocess.Popen(mockcmd, stdout=stdout, stderr=stderr)
+            cmd.communicate()
+
     if cmd.returncode == 0:
         open(success_file, 'w').write('done\n')
         ret = 1
     else:
-        if (isinstance(err, bytes)):
-            err = err.decode("utf-8")
-        sys.stderr.write(err)
         open(fail_file, 'w').write('undone\n')
         ret = 0
 
-    return ret, cmd, out, err
+    return ret, cmd
 
 
 def log(lf, msg):
@@ -349,7 +348,7 @@ def main(args):
                 else:
                     downloaded_pkgs[pkg] = url
             log(opts.logfile, "Start build: %s" % pkg)
-            ret, cmd, out, err = do_build(opts, config_opts['chroot_name'], pkg)
+            ret, cmd = do_build(opts, config_opts['chroot_name'], pkg)
             log(opts.logfile, "End build: %s" % pkg)
             if ret == 0:
                 failed.append(pkg)
